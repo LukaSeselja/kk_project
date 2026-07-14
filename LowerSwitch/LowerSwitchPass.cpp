@@ -12,6 +12,16 @@ namespace {
     static char ID;
     LowerSwitchPass() : FunctionPass(ID) {}
 
+    void updatePHIs(BasicBlock *Successor, BasicBlock *OldPredecessor, BasicBlock *NewPredecessor) {
+      if (OldPredecessor == NewPredecessor)
+        return;
+      for (PHINode &PN : Successor->phis()) {
+        int BBIndex = PN.getBasicBlockIndex(OldPredecessor);
+        if (BBIndex != -1)
+          PN.setIncomingBlock(BBIndex, NewPredecessor);
+      }
+    }
+
     bool processSwitchInst(SwitchInst *SI) {
       BasicBlock *CurBlock = SI->getParent();
       Function *F = CurBlock->getParent();
@@ -33,19 +43,25 @@ namespace {
       for (size_t i = 0; i < Cases.size(); ++i) {
         bool IsLast = (i == Cases.size() - 1);
         BasicBlock *NextBB = IsLast ? DefaultBB : BasicBlock::Create(F->getContext(), "", F);
+
         IRBuilder<> Builder(CurrentBB);
         Value *Cmp = Builder.CreateICmpEQ(Cond, Cases[i].first);
         Builder.CreateCondBr(Cmp, Cases[i].second, NextBB);
+
+        updatePHIs(Cases[i].second, CurBlock, CurrentBB);
+        if (IsLast)
+          updatePHIs(DefaultBB, CurBlock, CurrentBB);
+
         CurrentBB = NextBB;
       }
       return true;
     }
 
-    bool runOnFunction(Function &F) {
+    bool runOnFunction(Function &F) override {
       std::vector<SwitchInst *> Switches;
       for (BasicBlock &BB : F)
-          if (auto *SI = dyn_cast<SwitchInst>(BB.getTerminator()))
-            Switches.push_back(SI);
+        if (auto *SI = dyn_cast<SwitchInst>(BB.getTerminator()))
+          Switches.push_back(SI);
 
       bool Changed = false;
       for (SwitchInst *SI : Switches)

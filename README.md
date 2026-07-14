@@ -49,12 +49,12 @@ The pass is registered under the legacy PassManager with the name
 
 ```bash
 cd llvm_project/build
-./bin/opt -load lib/LLVMLowerSwitch.so -enable-new-pm=0 -lower-switch <input>.ll -S -o <output>.ll
+./bin/opt -load lib/LLVMLowerSwitch.so -enable-new-pm=0 -lower-switch -S <input>.ll -o <output>.ll
 ```
 
 ## Tests
 
-The `LowerSwitch/tests/` folder contains three LLVM IR test files:
+The `LowerSwitch/tests/` folder contains four LLVM IR test files:
 
 - **`emptySwitch.ll`** — a switch with no case labels, only a default
   destination; the minimal edge case, verifying it collapses to a single
@@ -64,14 +64,17 @@ The `LowerSwitch/tests/` folder contains three LLVM IR test files:
 - **`twoSwitches.ll`** — two independent switch statements in the same
   function; verifies that multiple switches are each found and
   lowered correctly without interfering with one another.
+- **`PHILowering.ll`** — a switch statement where successor blocks 
+   contain PHI nodes; verifies that predecessor blocks in PHI nodes
+   are correctly updated when new comparison blocks are inserted.
 
 Run each test with:
 
 ```bash
 cd llvm_project/build
-./bin/opt -load lib/LLVMLowerSwitch.so -enable-new-pm=0 -lower-switch emptySwitch.ll -S -o emptySwitch.lowered.ll
+./bin/opt -load lib/LLVMLowerSwitch.so -enable-new-pm=0 -lower-switch -S emptySwitch.ll -o emptySwitch.lowered.ll
 ```
 
-and repeat for `basicSwitch.ll` and `twoSwitches.ll`. Inspect the output
+and repeat for `basicSwitch.ll`, `twoSwitches.ll` and `PHILowering.ll`. Inspect the output
 `.ll` files — there should be no remaining `switch` instructions, replaced
-by equivalent chains of `icmp`/`br` instructions.
+by equivalent chains of `icmp`/`br` instructions with correctly patched PHI nodes.
